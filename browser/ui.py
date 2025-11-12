@@ -1,82 +1,76 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QVBoxLayout, QPushButton, QHBoxLayout
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl
+# sys.path.append(r"E:\WorkSpace\MiniBrowser")
+from browser.controller import *
+from PyQt5.QtWidgets import *
+from PyQt5.QtWebEngineWidgets import *
+from PyQt5.QtCore import *
 
 
-miniBrowser = QApplication(sys.argv)
 
-# tạo cửa sổ
-window = QWidget()
-window.setWindowTitle("Mini Browser")
-window.resize(900, 600)
 
-# tạo các layout
+class MiniBrowser(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Mini Browser")
+        self.resize(1200, 800)
 
-#layout chính
-layout_main = QVBoxLayout()
 
-# layout chứa các nút và thanh url
-layout_top = QHBoxLayout()
-#layout chứa các nút
-layout_contain_button = QHBoxLayout()
-# các nút
-btn_back = QPushButton("Back")
-btn_next = QPushButton("Next")
-btn_reload = QPushButton("reload")
-# thêm các nút
-layout_contain_button.addWidget(btn_back)
-layout_contain_button.addWidget(btn_next)
-layout_contain_button.addWidget(btn_reload)
-# layout chứa thanh url
-layout_contain_addressBar = QHBoxLayout()
-# thanh url
-address_bar = QLineEdit()
-address_bar.setPlaceholderText("enter url")
-# thêm thanh url
-layout_contain_addressBar.addWidget(address_bar)
+        self.browser = QWebEngineView()
+        self.browser.setUrl(QUrl("https://www.google.com"))
 
-# thêm layout phần phía trên
-layout_top.addLayout(layout_contain_button)
-layout_top.addLayout(layout_contain_addressBar)
+        # Thanh công cụ
+        self.address_bar = QLineEdit()
+        self.address_bar.setPlaceholderText("Enter URL")
 
-# tạo trình duyệt
-browser = QWebEngineView()
-browser.setUrl(QUrl("https://www.google.com"))
-# thêm layout vào layout chính
-layout_main.addLayout(layout_top)
-layout_main.addWidget(browser)
-#xử lý sự kiện 
-btn_back.clicked.connect(browser.back)
-btn_next.clicked.connect(browser.forward)
+        btn_back = QPushButton("Back")
+        btn_next = QPushButton("Next")
+        btn_reload = QPushButton("Reload")
 
-def navigate_to_url():
-    url = address_bar.text().strip()
-    if not url:
-        return
-    if not url.startswith(("http://","https://")):
-        if "." in url:
-            url = "https://"+url
-        else:
-            url = f"https://www.google.com/search?q={url}"
-    browser.setUrl(QUrl(url))
+        # layout top
+        layout_top = QHBoxLayout()
+        layout_top.addWidget(btn_back)
+        layout_top.addWidget(btn_next)
+        layout_top.addWidget(btn_reload)
+        layout_top.addWidget(self.address_bar)
 
-def reload_page(qurl):
-    current_url = browser.url().toString()
-    browser.setUrl(QUrl(current_url))
+        # layout chính
+        layout_main = QVBoxLayout()
+        layout_main.addLayout(layout_top)
+        layout_main.addWidget(self.browser)
 
-def update_url_bar(qurl):
-    address_bar.setText(qurl.toString())
+        # central widget
+        central_widget = QWidget()
+        central_widget.setLayout(layout_main)
+        self.setCentralWidget(central_widget)
 
-def check_load(ok):
-    if not ok:
-        browser.setHtml("<h1>Page not found</h1>")
+        # tạo controller
+        self.controller = BrowserController(
+            self.browser, 
+            self.address_bar, 
+            btn_back=btn_back, 
+            btn_next=btn_next
+        )
 
-address_bar.returnPressed.connect(navigate_to_url)
-btn_reload.clicked.connect(reload_page)
-browser.urlChanged.connect(update_url_bar)
-browser.loadFinished.connect(check_load)
-# set layout
-window.setLayout(layout_main)
-window.show()
-sys.exit(miniBrowser.exec_())
+        
+
+
+        # kết nối sự kiện
+        # xử lý các nút
+        btn_back.clicked.connect(self.controller.go_back)
+        btn_next.clicked.connect(self.controller.go_forward)
+        btn_reload.clicked.connect(self.controller.reload_page)
+
+        # xử lý khi chuyên sang trang mới hay url thay đổi 
+        self.browser.urlChanged.connect(self.controller.update_url_bar)
+        self.browser.loadFinished.connect(self.controller.check_load)
+        self.browser.loadFinished.connect(self.controller.update_navigation_buttons)
+        self.address_bar.returnPressed.connect(self.controller.navigate_to_url)
+
+
+
+# if __name__ == "__main__":
+#     app = QApplication(sys.argv)
+#     window = MiniBrowser()
+#     window.show()
+#     sys.exit(app.exec_())
+
