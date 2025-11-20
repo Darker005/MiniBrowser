@@ -3,13 +3,16 @@ from PyQt5.QtWebEngineWidgets import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 
-class TabManager:
-    def __init__(self, tab_bar, web_container, address_bar, controller, main_window):
+class TabManager(QObject):
+    tab_changed = pyqtSignal()
+    def __init__(self, tab_bar, web_container, address_bar, controller, main_window, history_manager):
+        super().__init__()
         self.tab_bar = tab_bar
         self.web_container = web_container
         self.address_bar = address_bar
         self.controller = controller
         self.main_window = main_window
+        self.history_manager = history_manager
 
         self.browsers = []
 
@@ -28,10 +31,16 @@ class TabManager:
         if qurl is None:
             qurl = QUrl("https://www.google.com")
         
-        browser = QWebEngineView()
-        browser.setUrl(qurl)
+        # Kiểm tra URL hợp lệ
+        if not qurl.isValid() or qurl.scheme() == "":
+            # URL không hợp lệ → mở tab lỗi
+            browser = QWebEngineView()
+            browser.setHtml("<h1>Invalid URL</h1>")  # Hiển thị thông báo lỗi
+        else:
+            browser = QWebEngineView()
+            browser.setUrl(qurl)
 
-        # thêm cái browser mà mình mới add vào container
+        # thêm cái browser vào container
         self.web_container.addWidget(browser)
         self.web_container.setCurrentWidget(browser)
 
@@ -47,15 +56,18 @@ class TabManager:
         browser.urlChanged.connect(lambda url, i=i: self.update_url_bar(url, i))
         browser.titleChanged.connect(lambda title, i=i: self.tab_bar.setTabText(i, title[:15]))
         browser.loadFinished.connect(lambda: self.controller.update_navigation_buttons())
+        browser.loadFinished.connect(lambda ok, br=browser: self.on_page_loaded(br))
+        browser.loadFinished.connect(lambda ok: self.tab_changed.emit())
 
         # cập nhật controller sang browser hiện tại
         self.controller.browser = browser
+
 
     def close_tab(self, index):
         if len(self.browsers) <= 1:
             self.main_window.close()
             return
-        
+
         browser = self.browsers.pop(index)
         self.web_container.removeWidget(browser)
         browser.deleteLater()
@@ -72,6 +84,7 @@ class TabManager:
             self.controller.browser = browser
             self.address_bar.setText(browser.url().toString())
             self.controller.update_navigation_buttons()
+            self.tab_changed.emit()
     
     def update_url_bar(self, url, index):
         if index == self.tab_bar.currentIndex():
@@ -89,3 +102,19 @@ class TabManager:
         if count > 1:
             new_index = (self.tab_bar.currentIndex() - 1) % count
             self.tab_bar.setCurrentIndex(new_index)
+
+    # hàm lưu vào history khi mà load xong 1 trang
+    def on_page_loaded(self, browser):
+        title = browser.title()
+        url = browser.url().toString()
+
+        # tránh lưu URL rỗng hoặc about:blank
+        if url and url not in ("", "about:blank"):
+            self.history_manager.add_entry(title, url)
+            # print để kiểm tra
+            print("Saved history:", title, url)
+    
+    def current_browser(self):
+        if self.browsers:
+            return self.browsers[self.tab_bar.currentIndex()]
+        return None
