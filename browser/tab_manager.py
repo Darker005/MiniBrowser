@@ -5,7 +5,7 @@ from PyQt5.QtGui import *
 
 class TabManager(QObject):
     tab_changed = pyqtSignal()
-    def __init__(self, tab_bar, web_container, address_bar, controller, main_window, history_manager):
+    def __init__(self, tab_bar, web_container, address_bar, controller, main_window, history_manager, web_profile=None):
         super().__init__()
         self.tab_bar = tab_bar
         self.web_container = web_container
@@ -13,6 +13,7 @@ class TabManager(QObject):
         self.controller = controller
         self.main_window = main_window
         self.history_manager = history_manager
+        self.web_profile = web_profile
 
         self.browsers = []
 
@@ -35,9 +36,15 @@ class TabManager(QObject):
         if not qurl.isValid() or qurl.scheme() == "":
             # URL không hợp lệ → mở tab lỗi
             browser = QWebEngineView()
+            if self.web_profile:
+                page = QWebEnginePage(self.web_profile, browser)
+                browser.setPage(page)
             browser.setHtml("<h1>Invalid URL</h1>")  # Hiển thị thông báo lỗi
         else:
             browser = QWebEngineView()
+            if self.web_profile:
+                page = QWebEnginePage(self.web_profile, browser)
+                browser.setPage(page)
             browser.setUrl(qurl)
 
         # thêm cái browser vào container
