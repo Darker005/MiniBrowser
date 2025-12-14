@@ -6,6 +6,7 @@ from browser.history_manager import *
 from browser.history_window import *
 from browser.bookmark_manager import *
 from browser.bookmark_window import *
+from browser.downloader import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtWebEngineWidgets import *
 from PyQt5.QtCore import *
@@ -86,7 +87,11 @@ class MiniBrowser(QMainWindow):
 
         self.history_manager = HistoryManager()
         self.bookmark_manager = BookmarkManager()
-
+        
+        # Tạo DownloadManager và profile chung cho tất cả browser
+        self.download_manager = DownloadManager(self)
+        self.web_profile = QWebEngineProfile.defaultProfile()
+        self.download_manager.setup_profile(self.web_profile)
 
         self.tab_manager = TabManager(
             self.tab_bar,
@@ -94,7 +99,8 @@ class MiniBrowser(QMainWindow):
             self.address_bar,
             self.controller,
             self,
-            self.history_manager
+            self.history_manager,
+            self.web_profile
         )
 
 
@@ -106,6 +112,7 @@ class MiniBrowser(QMainWindow):
         action_new_window = QAction("New Window", self)
         action_history = QAction("History", self)
         action_bookmarks = QAction("Bookmarks", self)
+        action_downloads = QAction("Downloads", self)
         action_settings = QAction("Settings", self)
 
         self.menu_popup.addAction(action_new_tab)
@@ -113,6 +120,7 @@ class MiniBrowser(QMainWindow):
         self.menu_popup.addSeparator()
         self.menu_popup.addAction(action_history)
         self.menu_popup.addAction(action_bookmarks)
+        self.menu_popup.addAction(action_downloads)
         self.menu_popup.addSeparator()
         self.menu_popup.addAction(action_settings)
 
@@ -142,6 +150,7 @@ class MiniBrowser(QMainWindow):
         action_new_window.triggered.connect(lambda: print("New Window clicked!"))
         action_history.triggered.connect(self.open_history_window)
         action_bookmarks.triggered.connect(self.open_bookmark_window)
+        action_downloads.triggered.connect(self.open_downloads_window)
         action_settings.triggered.connect(lambda: print("Settings clicked!"))
 
         #  tab đầu tiên
@@ -164,6 +173,10 @@ class MiniBrowser(QMainWindow):
 
         self.bookmark_window.load_bookmarks()
         self.bookmark_window.show()
+    
+    #  hàm để mở ra cái download_window
+    def open_downloads_window(self):
+        self.download_manager.show_downloads(self)
     
     # hàm thêm cái trang mà mình bấm vào để lưu bookmark
     def add_current_page_to_bookmarks(self):
