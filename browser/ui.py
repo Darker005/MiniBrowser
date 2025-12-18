@@ -1,4 +1,5 @@
 import sys
+import os
 # sys.path.append(r"E:\WorkSpace\MiniBrowser")
 from browser.controller import *
 from browser.tab_manager import *
@@ -7,16 +8,31 @@ from browser.history_window import *
 from browser.bookmark_manager import *
 from browser.bookmark_window import *
 from browser.downloader import *
+from browser.search_suggestion import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtWebEngineWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 
 
+# ===================== ASSET PATH HELPER =====================
+def asset_path(relative_path: str) -> str:
+    """
+    Trả về đường dẫn tuyệt đối tới thư mục assets
+    Hoạt động đúng dù chạy ở đâu
+    """
+    base_dir = os.path.dirname(os.path.abspath(__file__))   # /browser
+    project_root = os.path.dirname(base_dir)                # /MiniBrowser
+    return os.path.join(project_root, "assets", relative_path)
+# =============================================================
+
+
+
 class MiniBrowser(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Mini Browser")
+        self.setWindowIcon(QIcon(asset_path("icons/browser.png")))
         self.resize(1200, 800)
 
 
@@ -87,6 +103,12 @@ class MiniBrowser(QMainWindow):
 
         self.history_manager = HistoryManager()
         self.bookmark_manager = BookmarkManager()
+        self.search_suggestion_manager = SearchSuggestionManager(
+            self.address_bar,
+            self.history_manager,
+            self.bookmark_manager
+        )
+
         
         # Tạo DownloadManager và profile chung cho tất cả browser
         self.download_manager = DownloadManager(self)

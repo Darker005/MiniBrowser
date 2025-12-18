@@ -51,3 +51,19 @@ class HistoryManager:
         """Xoá toàn bộ history"""
         self.conn.execute("DELETE FROM history")
         self.conn.commit()
+    
+    def search(self, keyword, limit=5):
+        cursor = self.conn.cursor()
+        query = """
+        SELECT title, url
+        FROM history
+        WHERE title LIKE ? OR url LIKE ?
+        GROUP BY url
+        ORDER BY MAX(timestamp) DESC
+        LIMIT ?
+        """
+        like = f"%{keyword}%"
+        cursor.execute(query, (like, like, limit))
+        return cursor.fetchall()
+
+

@@ -64,3 +64,20 @@ class BookmarkManager:
         query = "UPDATE bookmarks SET title = ?, url = ? WHERE id = ?"
         self.conn.execute(query, (title, url, bookmark_id))
         self.conn.commit()
+    
+    def search(self, keyword, limit=5):
+        cursor = self.conn.cursor()
+        query = """
+        SELECT title, url FROM bookmarks
+        WHERE title LIKE ? OR url LIKE ?
+        ORDER BY
+            CASE
+                WHEN url LIKE ? THEN 0
+                ELSE 1
+            END
+        LIMIT ?
+        """
+        like = f"%{keyword}%"
+        cursor.execute(query, (like, like, like, limit))
+        return cursor.fetchall()
+
