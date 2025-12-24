@@ -245,3 +245,4 @@ class DownloadManager(QObject):
         window.raise_()
         window.activateWindow()
 
+

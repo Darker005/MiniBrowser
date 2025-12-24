@@ -9,6 +9,10 @@ from browser.bookmark_manager import *
 from browser.bookmark_window import *
 from browser.downloader import *
 from browser.search_suggestion import *
+from browser.theme_manager import ThemeManager
+from browser.settings_window import SettingsWindow
+from browser.network_monitor import NetworkMonitor
+from browser.network_monitor_window import NetworkMonitorWindow
 from PyQt5.QtWidgets import *
 from PyQt5.QtWebEngineWidgets import *
 from PyQt5.QtCore import *
@@ -109,11 +113,21 @@ class MiniBrowser(QMainWindow):
             self.bookmark_manager
         )
 
+        # Tạo ThemeManager và áp dụng theme
+        self.theme_manager = ThemeManager(self)
+        self.theme_manager.theme_changed.connect(self.apply_theme)
+        self.apply_theme()  # Áp dụng theme khi khởi động
+        # Lắng nghe bật/tắt dark mode cho nội dung web
+        self.theme_manager.force_web_dark_mode_changed.connect(self.on_force_web_dark_mode_changed)
         
         # Tạo DownloadManager và profile chung cho tất cả browser
         self.download_manager = DownloadManager(self)
         self.web_profile = QWebEngineProfile.defaultProfile()
         self.download_manager.setup_profile(self.web_profile)
+        
+        # Tạo NetworkMonitor
+        self.network_monitor = NetworkMonitor(self)
+        self.network_monitor.setup_profile(self.web_profile)
 
         self.tab_manager = TabManager(
             self.tab_bar,
@@ -124,6 +138,8 @@ class MiniBrowser(QMainWindow):
             self.history_manager,
             self.web_profile
         )
+        # Đảm bảo tất cả tab hiện tại áp dụng trạng thái dark mode web
+        self.on_force_web_dark_mode_changed(self.theme_manager.force_web_dark_mode)
 
 
 
@@ -135,6 +151,7 @@ class MiniBrowser(QMainWindow):
         action_history = QAction("History", self)
         action_bookmarks = QAction("Bookmarks", self)
         action_downloads = QAction("Downloads", self)
+        action_network_monitor = QAction("Network Monitor", self)
         action_settings = QAction("Settings", self)
 
         self.menu_popup.addAction(action_new_tab)
@@ -143,6 +160,7 @@ class MiniBrowser(QMainWindow):
         self.menu_popup.addAction(action_history)
         self.menu_popup.addAction(action_bookmarks)
         self.menu_popup.addAction(action_downloads)
+        self.menu_popup.addAction(action_network_monitor)
         self.menu_popup.addSeparator()
         self.menu_popup.addAction(action_settings)
 
@@ -173,7 +191,8 @@ class MiniBrowser(QMainWindow):
         action_history.triggered.connect(self.open_history_window)
         action_bookmarks.triggered.connect(self.open_bookmark_window)
         action_downloads.triggered.connect(self.open_downloads_window)
-        action_settings.triggered.connect(lambda: print("Settings clicked!"))
+        action_network_monitor.triggered.connect(self.open_network_monitor)
+        action_settings.triggered.connect(self.open_settings_window)
 
         #  tab đầu tiên
         self.tab_manager.add_new_tab(QUrl("https://www.google.com"))
@@ -185,6 +204,8 @@ class MiniBrowser(QMainWindow):
         self.history_window = HistoryWindow(self.history_manager)
         # truyền main_window để HistoryWindow có thể mở tab
         self.history_window.main_window = self
+        # Áp dụng theme
+        self.history_window.setStyleSheet(self.theme_manager.get_stylesheet())
         self.history_window.show()
     
     #  hàm để mở ra cái bookmark_window
@@ -193,12 +214,29 @@ class MiniBrowser(QMainWindow):
             self.bookmark_window = BookmarkWindow(self.bookmark_manager)
             self.bookmark_window.main_window = self  # để mở URL từ bookmark
 
+        # Áp dụng theme
+        self.bookmark_window.setStyleSheet(self.theme_manager.get_stylesheet())
         self.bookmark_window.load_bookmarks()
         self.bookmark_window.show()
     
     #  hàm để mở ra cái download_window
     def open_downloads_window(self):
+        download_window = self.download_manager.get_download_window(self)
+        # Áp dụng theme
+        download_window.setStyleSheet(self.theme_manager.get_stylesheet())
         self.download_manager.show_downloads(self)
+    
+    def open_network_monitor(self):
+        """Mở cửa sổ Network Monitor"""
+        if not hasattr(self, "network_monitor_window"):
+            self.network_monitor_window = NetworkMonitorWindow(self.network_monitor, self)
+            self.network_monitor_window.setStyleSheet(self.theme_manager.get_stylesheet())
+        
+        # Áp dụng theme
+        self.network_monitor_window.setStyleSheet(self.theme_manager.get_stylesheet())
+        self.network_monitor_window.show()
+        self.network_monitor_window.raise_()
+        self.network_monitor_window.activateWindow()
     
     # hàm thêm cái trang mà mình bấm vào để lưu bookmark
     def add_current_page_to_bookmarks(self):
@@ -247,6 +285,41 @@ class MiniBrowser(QMainWindow):
         else:
             self.btn_bookmark.setText("✩")
             self.btn_bookmark.setStyleSheet("color: gray; font-size: 20px; border: none; background: none;")
+    
+    # ---------- Theme functions ----------
+    def apply_theme(self):
+        """Áp dụng theme cho toàn bộ ứng dụng"""
+        stylesheet = self.theme_manager.get_stylesheet()
+        self.setStyleSheet(stylesheet)
+        
+        # Áp dụng cho các cửa sổ con nếu đã mở
+        if hasattr(self, 'history_window') and self.history_window:
+            self.history_window.setStyleSheet(stylesheet)
+        if hasattr(self, 'bookmark_window') and self.bookmark_window:
+            self.bookmark_window.setStyleSheet(stylesheet)
+        if hasattr(self, 'settings_window') and self.settings_window:
+            self.settings_window.setStyleSheet(stylesheet)
+        # Áp dụng cho download window nếu đã tạo
+        if hasattr(self, 'download_manager') and hasattr(self.download_manager, 'download_window') and self.download_manager.download_window:
+            self.download_manager.download_window.setStyleSheet(stylesheet)
+        # Áp dụng cho network monitor window nếu đã tạo
+        if hasattr(self, 'network_monitor_window') and self.network_monitor_window:
+            self.network_monitor_window.setStyleSheet(stylesheet)
+    
+    def on_force_web_dark_mode_changed(self, enabled: bool):
+        """Ép lại dark mode cho mọi trang đang mở khi người dùng bật/tắt"""
+        if hasattr(self, 'tab_manager') and self.tab_manager:
+            self.tab_manager.apply_dark_mode_to_all_pages(enabled)
+    
+    def open_settings_window(self):
+        """Mở cửa sổ cài đặt"""
+        if not hasattr(self, "settings_window"):
+            self.settings_window = SettingsWindow(self.theme_manager, self)
+            self.settings_window.setStyleSheet(self.theme_manager.get_stylesheet())
+        
+        self.settings_window.show()
+        self.settings_window.raise_()
+        self.settings_window.activateWindow()
 
 
 

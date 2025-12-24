@@ -16,6 +16,48 @@ class TabManager(QObject):
         self.web_profile = web_profile
 
         self.browsers = []
+        # Script CSS ép dark mode cho trang web
+        self._dark_mode_script = r"""
+(function() {
+  const STYLE_ID = "__mini_browser_dark_mode__";
+  let style = document.getElementById(STYLE_ID);
+  if (!style) {
+    style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.textContent = `
+      html {
+        background: #121212 !important;
+        color: #e0e0e0 !important;
+        filter: invert(0.9) hue-rotate(180deg);
+      }
+      body {
+        background: #121212 !important;
+        color: #e0e0e0 !important;
+      }
+      img, picture, video, iframe, canvas {
+        filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.05);
+        background: transparent !important;
+      }
+      input, textarea, select, option, button {
+        background: #1f1f1f !important;
+        color: #e0e0e0 !important;
+        border-color: #3c3c3c !important;
+      }
+      a { color: #8ab4f8 !important; }
+    `;
+    document.documentElement.appendChild(style);
+  }
+})();
+"""
+        self._dark_mode_cleanup_script = r"""
+(function() {
+  const style = document.getElementById("__mini_browser_dark_mode__");
+  if (style) {
+    style.remove();
+  }
+  document.documentElement.style.filter = "";
+})();
+"""
 
         # xử lý khi có sự kiện nào đó xảy ra với thanh tab_bar
         self.tab_bar.tabCloseRequested.connect(self.close_tab)
@@ -36,16 +78,26 @@ class TabManager(QObject):
         if not qurl.isValid() or qurl.scheme() == "":
             # URL không hợp lệ → mở tab lỗi
             browser = QWebEngineView()
+            page = None
             if self.web_profile:
                 page = QWebEnginePage(self.web_profile, browser)
                 browser.setPage(page)
             browser.setHtml("<h1>Invalid URL</h1>")  # Hiển thị thông báo lỗi
         else:
             browser = QWebEngineView()
+            page = None
             if self.web_profile:
                 page = QWebEnginePage(self.web_profile, browser)
                 browser.setPage(page)
+                # Setup network monitoring cho page
+                if hasattr(self.main_window, 'network_monitor') and self.main_window.network_monitor:
+                    self.main_window.network_monitor.setup_page(page)
             browser.setUrl(qurl)
+
+        # Lưu lại page để cấu hình dark mode
+        if page is None:
+            page = browser.page()
+        self._attach_dark_mode_handler(page)
 
         # thêm cái browser vào container
         self.web_container.addWidget(browser)
@@ -125,3 +177,25 @@ class TabManager(QObject):
         if self.browsers:
             return self.browsers[self.tab_bar.currentIndex()]
         return None
+
+    def _attach_dark_mode_handler(self, page: QWebEnginePage):
+        """Gắn sự kiện để ép dark mode mỗi khi trang load"""
+        if not page:
+            return
+        page.loadFinished.connect(lambda ok, p=page: self.apply_dark_mode_to_page(p))
+
+    def apply_dark_mode_to_page(self, page: QWebEnginePage, enabled: bool = None):
+        """Inject/cleanup CSS dark mode tùy theo cài đặt"""
+        if not page:
+            return
+        if enabled is None:
+            enabled = getattr(self.main_window.theme_manager, "force_web_dark_mode", False)
+        script = self._dark_mode_script if enabled else self._dark_mode_cleanup_script
+        page.runJavaScript(script)
+
+    def apply_dark_mode_to_all_pages(self, enabled: bool = None):
+        """Áp dụng trạng thái dark mode cho tất cả các tab đang mở"""
+        for browser in self.browsers:
+            page = browser.page()
+            if page:
+                self.apply_dark_mode_to_page(page, enabled)
